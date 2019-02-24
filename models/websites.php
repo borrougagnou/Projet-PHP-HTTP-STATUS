@@ -4,6 +4,11 @@ namespace models;
 
 class websites extends \Model
 {
+	public function get_data_by_admin($apikey)
+	{
+		return $this->get_one("admins", ["apikey" => $apikey]);
+	}
+
 	public function add_website($url)
 	{
 		return $this->insert("websites", ['url' => $url]);

@@ -48,5 +48,5 @@ INSERT INTO logs (url, status, time) VALUES ("https://google.com", "200", '2006-
 INSERT INTO logs (url, status, time) VALUES ("https://yahoo.com" , "404", '2012-01-01 11:11:11');
 INSERT INTO logs (url, status, time) VALUES ("https://google.com", "200", now());
 
---TRUNCATE TABLE websites;
---TRUNCATE TABLE logs;
+TRUNCATE TABLE websites;
+TRUNCATE TABLE logs;

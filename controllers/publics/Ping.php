@@ -16,17 +16,38 @@ class Ping extends \Controller
 		return (is_numeric($str) && $str >= 0 && $str == round($str));
 	}
 
-	public function check_uid($uid)
+	public function check_uid($uid, $text)
 	{
 		$uid = $uid ?? false;
 
 		if (!$this->is_positive_integer($uid))
 		{
-			$msg = "Id:{$uid} n'est pas un nombre valide";
-			return $this->render('ping/echec', ['message' => $msg]);
-			return false;
+			if ($text === 'api')
+			{
+				$msg = "Id:{$uid} n'est pas un nombre valide";
+				$this->render('ping/echec', ['message' => $msg]);
+				return false;
+			}
+			else if ($text === 'html')
+			{
+				$msg = "Id:{$uid} n'est pas un nombre valide";
+				$this->render('ping/error', ['code' => 405, 'message' => $msg]);
+				return false;
+			}
 		}
 		return true;
+	}
+
+	public function check_masterkey($key)
+	{
+		$key = $key ?? false;
+
+		if ($this->internal_websites->check_apikey($key))
+			return true;
+		$msg = "clé API inexistante ou invalide";
+		$this->render('ping/echec', ['message' => $msg]);
+		return false;
+
 	}
 
 	public function send_mail($error_code, $server)
@@ -45,15 +66,14 @@ class Ping extends \Controller
 	}
 
 
-// PARTIE HTML
+//### PARTIE HTML ###//
+
 
 	public function home()
 	{
 		$result = $this->internal_websites->my_liste();
 		$nb_websites = count($result);
 
-		// ENVOYEZ EMAIL
-//		$this->send_mail(404, "serveuràlacon");
 		return $this->render("ping/home", ['result' => $result, 'nbsites' => $nb_websites]);
 	}
 
@@ -81,12 +101,27 @@ class Ping extends \Controller
 		return $this->render("ping/add", ['url' => $url]);
 	}
 
+	public function delhtml(string $uid)
+	{
+		if (!$this->check_uid($uid, 'html'))
+			return false;
+
+		$this->internal_websites->delete_website($uid);
+
+		return $this->render('ping/delete', ['uid' => $uid]);
+	}
+
 	public function statushtml(string $uid)
 	{
-		if (!$this->check_uid($uid))
+		if (!$this->check_uid($uid, 'html'))
 			return false;
 
 		$query = $this->internal_websites->get_log_with_website($uid);
+		if (empty($query))
+		{
+			$msg = "l'Id:{$uid} n'existe pas";
+			return $this->render('ping/error', ['code' => 404,'message' => $msg]);
+		}
 
 		if (!isset($myJson))
 			$elem = new \stdClass();
@@ -100,17 +135,28 @@ class Ping extends \Controller
 
 	public function historyhtml(string $uid)
 	{
-		if (!$this->check_uid($uid))
+		if (!$this->check_uid($uid, 'html'))
 			return false;
 
 		$query = $this->internal_websites->get_log_with_website($uid);
+		if (empty($query))
+		{
+			$msg = "l'Id:{$uid} n'existe pas";
+			return $this->render('ping/error', ['code' => 404,'message' => $msg]);
+		}
 		return $this->render('ping/history', ['uid' => $uid, 'query' => $query]);
 	}
 
-// PARTIE API
+
+//### PARTIE API ###//
+
 
 	public function api()
 	{
+		$apikey = $_GET['api_key'] ?? false;
+		if (!$this->check_masterkey($apikey))
+			return false;
+
 		if (!isset($myJson))
 			$myJson = new \stdClass();
 
@@ -122,6 +168,10 @@ class Ping extends \Controller
 
 	public function liste()
 	{
+		$apikey = $_GET['api_key'] ?? false;
+		if (!$this->check_masterkey($apikey))
+			return false;
+
 		$result = $this->internal_websites->my_liste();
 		$nb_websites = count($result);
 
@@ -149,6 +199,10 @@ class Ping extends \Controller
 
 	public function myadd()
 	{
+		$apikey = $_GET['api_key'] ?? false;
+		if (!$this->check_masterkey($apikey))
+			return false;
+
 		$url = $_POST['url'] ?? false;
 		if (!isset($myJson))
 			$myJson = new \stdClass();
@@ -174,14 +228,18 @@ class Ping extends \Controller
 			$query = $this->internal_websites->get_data_by_url($url);
 
 			$myJson->success = true;
-			$myJson->id = $query;
+			$myJson->id = $query['id'];
 			return $this->render('ping/api', ['myJson' => $myJson]);
 		}
 	}
 
 	public function mydelete(string $uid)
 	{
-		if (!$this->check_uid($uid))
+		$apikey = $_GET['api_key'] ?? false;
+		if (!$this->check_masterkey($apikey))
+			return false;
+
+		if (!$this->check_uid($uid, 'api'))
 			return false;
 
 		$this->internal_websites->delete_website($uid);
@@ -196,11 +254,21 @@ class Ping extends \Controller
 
 	public function mystatus(string $uid)
 	{
-		if (!$this->check_uid($uid))
+		$apikey = $_GET['api_key'] ?? false;
+		if (!$this->check_masterkey($apikey))
+			return false;
+
+		if (!$this->check_uid($uid, 'api'))
 			return false;
 
 		//$query = retour sql logs + website avec LEFT JOIN,
 		$query = $this->internal_websites->get_log_with_website($uid);
+		if (empty($query))
+		{
+			$msg = "l'Id:{$uid} n'existe pas";
+			return $this->render('ping/echec', ['message' => $msg]);
+		}
+
 		if (!isset($myJson))
 			$myJson = new \stdClass();
 
@@ -217,91 +285,38 @@ class Ping extends \Controller
 
 	public function myhistory(string $uid)
 	{
-		if (!$this->check_uid($uid))
+		$apikey = $_GET['api_key'] ?? false;
+		if (!$this->check_masterkey($apikey))
 			return false;
 
-		$result = $this->internal_websites->get_log_with_website($uid);
+		if (!$this->check_uid($uid, 'api'))
+			return false;
 
-//#################### ICI FONCTION DE TEST ##################//
-/*
-		$result = array(
-			array(
-				'id' => '1',
-				'name_website' => 'google',
-				'url' => 'https://google.com',
-				'status' => '200',
-				'time' => "2004-01-01 23:59:59",
-			),
-			array(
-				'id' => '2',
-				'name_website' => 'google',
-				'url' => 'https://google.com',
-				'status' => '200',
-				'time' => "2005-03-11 23:59:59",
-			),
-			array(
-				'id' => '3',
-				'name_website' => 'google',
-				'url' => 'https://google.com',
-				'status' => '200',
-				'time' => "2006-12-06 23:59:59",
-			),
-			array(
-				'id' => '4',
-				'name_website' => 'google',
-				'url' => 'https://google.com',
-				'status' => '200',
-				'time' => "2004-01-01 23:59:59",
-			),
-			array(
-				'id' => "5",
-				'name_website' => 'yahoo',
-				'url' => 'https://yahoo.com',
-				'status' => '404',
-				'time' => "2012-01-01 23:59:59",
-			),
-			array(
-				'id' => "NULL",
-				'name_website' => 'youtube',
-				'url' => 'https://www.youtube.com',
-				'status' => 'NULL',
-				'time' => 'NULL',
-			),
-			array(
-				'id' => "NULL",
-				'name_website' => 'truc',
-				'url' => 'https://truc.com',
-				'status' => 'NULL',
-				'time' => 'NULL',
-			),
-			array(
-				'id' => "NULL",
-				'name_website' => 'bidule',
-				'url' => 'https://bidule.com',
-				'status' => 'NULL',
-				'time' => 'NULL',
-			),
-		);
-*/
-//################################################################//
+		// On check si l'UID existe en base
+		$query = $this->internal_websites->get_log_with_website($uid); 
+		if (empty($query))
+		{
+			$msg = "l'Id:{$uid} n'existe pas";
+			return $this->render('ping/echec', ['message' => $msg]);
+		}
 
-		$nb_logs = count($result);
-
+		// Une fois les tests passé, on crée un JSON et on le rempli
 		if (!isset($myJson))
 			$myJson = new \stdClass();
 
 		$myJson->id = intval($uid);
-		$myJson->url = $result['0']['url'];
+		$myJson->url = $query['0']['url'];
 
+		$nb_logs = count($query);
 		for ($i = 0; $i < $nb_logs; $i++)
 		{
-			if ($result[$i]['id'] == 'NULL')
+			if ($query[$i]['id'] == 'NULL')
 				return $this->render('ping/api', ['myJson' => $myJson]);
 
 			if (!isset($myJson->status[$i]))
 				$myJson->status[$i] = new \stdClass();
-			$myJson->status[$i]->code = intval($result[$i]['status']);
-			$myJson->status[$i]->at = $result[$i]['time'];
+			$myJson->status[$i]->code = intval($query[$i]['status']);
+			$myJson->status[$i]->at = $query[$i]['time'];
 		}
 
 		return $this->render('ping/api', ['myJson' => $myJson]);

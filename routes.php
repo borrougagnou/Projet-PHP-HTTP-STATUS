@@ -3,6 +3,7 @@
 		'Ping' => [
 			'home' => '/',
 			'addhtml' => '/add',
+			'delhtml' => '/delete/{uid}',
 			'statushtml' => '/status/{uid}',
 			'historyhtml' => '/history/{uid}',
 			'api' => '/api/',

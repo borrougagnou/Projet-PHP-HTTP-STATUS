@@ -17,10 +17,6 @@
 		<span class='myleft'>check :</span>
 		<span class='myright'> <?php echo $elem->at; ?> </span>
 		<br />
-
-
-
-
 	</div>
 </p>
 <a href=".." >Retour à la page précédente</a>

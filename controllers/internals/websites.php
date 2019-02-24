@@ -12,6 +12,14 @@ class websites extends \InternalController
 		$this->model_websites = new Modelwebsites($pdo);
 	}
 
+	public function check_apikey($apikey)
+	{
+		$result = $this->model_websites->get_data_by_admin($apikey);
+		if (!empty($result))
+			return true;
+		return false;
+	}
+
 	public function add_website($url)
 	{
 		return $this->model_websites->add_website($url);
